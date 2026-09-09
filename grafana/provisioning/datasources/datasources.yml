@@ -1,0 +1,38 @@
+# Grafana si datové zdroje založí sama při startu.
+# Hesla se berou z proměnných prostředí, které jí předává docker-compose,
+# takže v tomhle souboru žádné není.
+apiVersion: 1
+
+datasources:
+  - name: InfluxDB
+    uid: mosprema-influx
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    isDefault: true
+    jsonData:
+      version: Flux
+      organization: ${INFLUX_ORG}
+      defaultBucket: ${INFLUX_BUCKET}
+      httpMode: POST
+      # Měření jsou z roku 2023; kratší timeout velké dotazy neustojí.
+      timeout: 60
+    secureJsonData:
+      token: ${INFLUX_TOKEN}
+
+  - name: PostgreSQL
+    uid: mosprema-postgres
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: ${POSTGRES_USER}
+    database: ${POSTGRES_DB}
+    jsonData:
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+      maxOpenConns: 10
+      maxIdleConns: 5
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD}

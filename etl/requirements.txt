@@ -1,0 +1,6 @@
+# Verze jsou zafixovane, aby stejny vstup vzdy dal stejny vystup.
+pandas==2.3.1
+openpyxl==3.1.5
+# Parser skutecne gramatiky PostgreSQL; pouziva ho etl/validate.py ke kontrole
+# souboru v postgres/. Bez nej validace probehne, jen tuhle cast preskoci.
+pglast==8.4

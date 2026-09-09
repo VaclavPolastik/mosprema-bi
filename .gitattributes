@@ -1,0 +1,25 @@
+# Konce řádků řídí repozitář, ne nastavení konkrétního počítače.
+#
+# Není to kosmetika. Při stavbě projektu shodily CRLF konce řádků dvě věci:
+# InfluxDB odmítla celý line protocol hláškou "bad timestamp", protože CR
+# přilepený k časovému razítku není číslo, a shellové skripty s CRLF neběží
+# na Linuxu. Bez tohoto souboru by to Git na Windows zavedl zpátky při
+# každém klonu.
+
+# Výchozí stav: textové soubory se v repozitáři drží v LF.
+* text=auto eol=lf
+
+# PowerShell zůstává v CRLF — je to skript pro Windows a Windows PowerShell
+# 5.1 s ním tak zachází nejlépe. BOM na začátku souboru musí zůstat, jinak
+# se skript čte jako ANSI a rozpadne se na diakritice.
+*.ps1 text eol=crlf
+
+# Shellové skripty a data pro InfluxDB musí být v LF vždy.
+*.sh  text eol=lf
+*.lp  text eol=lf
+
+# Binární soubory Git nesmí nijak převádět.
+*.xlsx binary
+*.pbix binary
+*.png  binary
+*.pdf  binary

@@ -1,0 +1,16 @@
+# Načte všechny dashboardy ze složky, která je do kontejneru připojená.
+# allowUiUpdates: true = změny v prohlížeči jdou uložit, ale při restartu
+# je soubor přepíše. Zdrojem pravdy zůstává repozitář.
+apiVersion: 1
+
+providers:
+  - name: mosprema
+    orgId: 1
+    folder: mosprema_206
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

@@ -1,0 +1,521 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": ["mosprema", "bakalarka", "postgres"],
+  "templating": {
+    "list": [
+      {
+        "name": "model",
+        "label": "Model vývoje",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+        "query": "SELECT model_label AS __text, model_key AS __value FROM mosprema.dim_model ORDER BY model_key",
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {}
+      },
+      {
+        "name": "druh",
+        "label": "Druh",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+        "query": "SELECT species_label AS __text, species_key AS __value FROM mosprema.dim_species ORDER BY species_label",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "current": {}
+      }
+    ]
+  },
+  "time": { "from": "2023-03-01T00:00:00.000Z", "to": "2024-04-01T00:00:00.000Z" },
+  "timezone": "Europe/Prague",
+  "title": "mosprema_206 · vývoj larev a jakost dat",
+  "uid": "mosprema-vyvoj",
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Dnů s měřením",
+      "description": "Dny, ve kterých stanice poslala aspoň jedno čtení.",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 4, "w": 5, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*)::int AS dnu FROM mosprema.fact_daily"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "none", "textMode": "auto", "justifyMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "none", "color": { "mode": "fixed", "fixedColor": "blue" } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Čtení celkem",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 4, "w": 5, "x": 5, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*)::bigint AS cteni FROM mosprema.fact_reading"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "none", "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "blue" } },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Podíl platných čtení",
+      "description": "Čtení bez příznaku vady. Zbytek jsou hlavně dvě čidla srážek, která po celou dobu vracejí nulu.",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 4, "w": 5, "x": 10, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT round(100.0 * count(*) FILTER (WHERE quality_key = 'OK') / count(*), 1) AS podil FROM mosprema.fact_reading"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "none", "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Dnů s dopočtenou teplotou vody",
+      "description": "Dny, kdy hladina klesla pod nejmělčí čidlo (25 cm) a teplota vody se musela odhadnout z teploty vzduchu. Nejdůležitější omezení celého datasetu.",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 4, "w": 5, "x": 15, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT round(100.0 * count(*) FILTER (WHERE water_temp_estimated) / count(*), 1) AS podil FROM mosprema.fact_daily"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "none", "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 20 },
+              { "color": "red", "value": 50 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Chybějících hodin",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT coalesce(sum(missing_hours), 0)::int AS hodin FROM mosprema.fact_gap"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "none", "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "h", "color": { "mode": "fixed", "fixedColor": "orange" } },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Teplota vody a vzduchu",
+      "description": "Denní průměry. Sedmidenní klouzavý průměr tlumí denní kolísání, které je v mělké tůni velké.",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date::timestamp AS time, water_temp_c AS \"voda\", air_temp_c AS \"vzduch\", water_temp_ma7 AS \"voda – klouzavý průměr 7 dní\" FROM mosprema.v_daily_enriched WHERE $__timeFilter(date::timestamp) ORDER BY date"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "custom": {
+            "drawStyle": "line", "lineWidth": 1, "fillOpacity": 0, "showPoints": "never",
+            "spanNulls": false, "pointSize": 4, "axisPlacement": "auto", "gradientMode": "none"
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "voda – klouzavý průměr 7 dní" },
+            "properties": [
+              { "id": "custom.lineWidth", "value": 3 },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "dark-blue" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "vzduch" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "semi-dark-orange" } },
+              { "id": "custom.fillOpacity", "value": 8 }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 11,
+      "type": "barchart",
+      "title": "Podíl platných čtení po čidlech",
+      "description": "rain a rain_delta vracejí po celou dobu nulu — čidlo neměří.",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 4 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT sensor_key, ok_pct FROM mosprema.v_data_quality ORDER BY ok_pct, sensor_key"
+        }
+      ],
+      "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "showValue": "auto",
+        "stacking": "none",
+        "legend": { "showLegend": false, "displayMode": "list", "placement": "bottom", "calcs": [] },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "green", "value": 99 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Výška hladiny",
+      "description": "Vodorovná čára na 2 cm je práh, pod kterým model po třech dnech prohlásí larvy za mrtvé. Denní průměr, na kterém se pravidlo vyhodnocuje, pod něj neklesl nikdy (minimum 2,81 cm) — jednotlivá čtení ale ano, a to i tři dny po sobě (20.–22. 8. 2023). Podrobnosti v pohledu v_low_level_sensitivity.",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 13 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date::timestamp AS time, water_level_cm AS \"hladina\", water_level_ma7 AS \"hladina – klouzavý průměr 7 dní\" FROM mosprema.v_daily_enriched WHERE $__timeFilter(date::timestamp) ORDER BY date"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "lengthcm",
+          "custom": {
+            "drawStyle": "line", "lineWidth": 1, "fillOpacity": 10, "showPoints": "never",
+            "spanNulls": false, "gradientMode": "opacity",
+            "thresholdsStyle": { "mode": "line" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "transparent", "value": null },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 13,
+      "type": "piechart",
+      "title": "Které čidlo bylo pod vodou",
+      "description": "Volba čidla podle hloubkového pásma: nad 80 cm temp_3, nad 40 cm temp_2, jinak temp_1.",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 13 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT submerged_sensor AS metric, count(*)::int AS value FROM mosprema.fact_daily GROUP BY 1 ORDER BY 2 DESC"
+        }
+      ],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+        "pieType": "donut",
+        "displayLabels": ["percent"],
+        "legend": { "displayMode": "list", "placement": "right", "showLegend": true, "values": [] },
+        "tooltip": { "mode": "single", "sort": "none" }
+      },
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] }
+    },
+
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Kumulativní vývoj larev — $model",
+      "description": "Podíl dokončeného vývoje od nástupu kohorty do kuklení. Prahy 40 % a 67 % oddělují instar 3 a instar 4.",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 22 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT v.date::timestamp AS time, sp.species_label AS metric, v.pct_complete AS value FROM mosprema.fact_development v JOIN mosprema.dim_species sp ON sp.species_key = v.species_key WHERE v.model_key = '$model' AND v.species_key IN ($druh) AND $__timeFilter(v.date::timestamp) ORDER BY 1"
+        }
+      ],
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true, "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line", "lineWidth": 2, "fillOpacity": 5, "showPoints": "never",
+            "spanNulls": false, "gradientMode": "none",
+            "thresholdsStyle": { "mode": "dashed" }
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "transparent", "value": null },
+              { "color": "yellow", "value": 40 },
+              { "color": "orange", "value": 67 },
+              { "color": "red", "value": 100 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+
+    {
+      "id": 30,
+      "type": "table",
+      "title": "Porovnání modelů: o kolik dní se rozejdou",
+      "description": "Kladný rozdíl znamená, že nelineární model dojde ke kuklení dřív než lineární teplotní suma. Sezóna 2024 zůstává prázdná záměrně — data končí 23. 3. 2024, takže žádná kohorta se nestihla vyvinout do konce.",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT right(cohort_id, 4) AS \"Sezóna\", species_label AS \"Druh\", start_kohorty AS \"Start kohorty\", kukleni_zakladni AS \"Kuklení – teplotní suma\", kukleni_pokrocily AS \"Kuklení – Brière-2\", dnu_zakladni AS \"Dnů (suma)\", dnu_pokrocily AS \"Dnů (Brière)\", rozdil_dnu AS \"Brière dřív o\" FROM mosprema.v_model_comparison ORDER BY start_kohorty"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false, "reducer": ["sum"], "countRows": false, "fields": "" }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Brière dřív o" },
+            "properties": [
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "orange", "value": 10 },
+                    { "color": "red", "value": 20 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 31,
+      "type": "table",
+      "title": "Měsíční pokrytí měření",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT year_month AS \"Měsíc\", days_measured AS \"Dnů s měřením\", readings AS \"Čtení\", gap_blocks AS \"Výpadků\", missing_hours AS \"Chybí hodin\", uptime_pct AS \"Dostupnost %\" FROM mosprema.v_coverage_monthly ORDER BY year_month"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false, "reducer": ["sum"], "countRows": false, "fields": "" }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Dostupnost %" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "gradient" } },
+              { "id": "min", "value": 0 },
+              { "id": "max", "value": 100 }
+            ]
+          }
+        ]
+      }
+    },
+
+    {
+      "id": 32,
+      "type": "table",
+      "title": "Jakost dat po čidlech",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 9, "w": 14, "x": 0, "y": 40 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT sensor_label AS \"Čidlo\", category AS \"Kategorie\", unit AS \"Jednotka\", readings AS \"Čtení\", ok_pct AS \"Platných %\", distinct_values AS \"Různých hodnot\", worst_flag AS \"Nejčastější vada\", min_value AS \"Min\", max_value AS \"Max\" FROM mosprema.v_data_quality ORDER BY ok_pct, sensor_label"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false, "reducer": ["sum"], "countRows": false, "fields": "" }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Platných %" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              { "id": "custom.cellOptions", "value": { "type": "color-background", "mode": "gradient" } },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "red", "value": null },
+                    { "color": "orange", "value": 50 },
+                    { "color": "green", "value": 99 }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": 33,
+      "type": "table",
+      "title": "Nejdelší výpadky měření",
+      "datasource": { "type": "postgres", "uid": "mosprema-postgres" },
+      "gridPos": { "h": 9, "w": 10, "x": 14, "y": 40 },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT gap_start AS \"Od\", gap_end AS \"Do\", missing_hours AS \"Hodin\", severity AS \"Závažnost\" FROM mosprema.fact_gap ORDER BY missing_hours DESC, gap_start LIMIT 15"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": { "show": false, "reducer": ["sum"], "countRows": false, "fields": "" }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false } },
+        "overrides": []
+      }
+    }
+  ]
+}

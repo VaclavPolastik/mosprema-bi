@@ -1,0 +1,24 @@
+# Generovane ETL - da se kdykoli znovu vyrobit z data/raw
+out/*.csv
+out/etl_report.json
+out/etl_report.md
+influx/mosprema.lp
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Power BI
+*.pbix
+*.pbip
+.pbi/
+
+# Docker - skutecna konfigurace zustava mimo git, vzor je v .env.example
+.env
+.env.local
+
+# OS
+Thumbs.db
+desktop.ini

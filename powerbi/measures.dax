@@ -1,0 +1,241 @@
+// =====================================================================
+// DAX míry pro model mosprema_206
+//
+// Jak to použít: v Power BI Desktopu označ tabulku „Míry", pak
+// Modelování → Nová míra, a vlož vždy jeden blok (název = vzorec).
+//
+// U měr, které se špatně čtou, je připsaný ekvivalent v SQL nebo pandas.
+// Klíč k celému DAXu je jediná věc: míra se počítá ve filtrovacím kontextu,
+// který jí dá vizuál. Řádek grafu s hodnotou „květen 2023" znamená, že se
+// všechny tabulky v modelu předfiltrovaly na květen 2023 — a teprve pak se
+// vzorec spustil. CALCULATE je jediná funkce, která ten kontext umí změnit.
+// =====================================================================
+
+
+// =====================================================================
+// 1. ZÁKLADNÍ POČTY
+// =====================================================================
+
+Počet čtení = COUNTROWS ( fact_reading )
+// SQL: SELECT count(*) FROM fact_reading
+
+Platných čtení =
+CALCULATE ( [Počet čtení], fact_reading[quality_key] = "OK" )
+// SQL: count(*) FILTER (WHERE quality_key = 'OK')
+// CALCULATE přidá podmínku k tomu, co už vizuál nafiltroval.
+
+Podíl platných čtení =
+DIVIDE ( [Platných čtení], [Počet čtení] )
+// DIVIDE, ne lomítko: při nule vrátí prázdno místo chyby.
+// Formát: procenta, 1 desetinné místo
+
+Dnů s měřením = COUNTROWS ( fact_daily )
+
+Dnů v období = COUNTROWS ( dim_date )
+// Kalendář je souvislý i tam, kde stanice mlčela — proto se počítá z dim_date,
+// ne z faktů. Rozdíl obou měr je přesně to, co stanice zameškala.
+
+Pokrytí období =
+DIVIDE ( [Dnů s měřením], [Dnů v období] )
+// Formát: procenta
+
+
+// =====================================================================
+// 2. TEPLOTA A HLADINA
+// =====================================================================
+
+Teplota vody = AVERAGE ( fact_daily[water_temp_c] )
+// Formát: 0.0 "°C"
+
+Teplota vzduchu = AVERAGE ( fact_daily[air_temp_c] )
+
+Rozdíl voda − vzduch = [Teplota vody] - [Teplota vzduchu]
+// Velký kladný rozdíl obvykle znamená čidlo vyčnívající nad hladinu na slunci.
+
+Výška hladiny = AVERAGE ( fact_daily[water_level_cm] )
+// Formát: 0.0 "cm"
+
+Nejnižší hladina = MIN ( fact_daily[water_level_min_cm] )
+
+Teplota vody — max = MAX ( fact_daily[water_temp_max_c] )
+
+Teplota vody — min = MIN ( fact_daily[water_temp_min_c] )
+
+
+// =====================================================================
+// 3. KLOUZAVÉ PRŮMĚRY A ČASOVÁ INTELIGENCE
+//
+// Řada má výpadky (417 chybějících hodin ve 211 blocích). Time-intelligence
+// funkce v DAXu proto musí stát na souvislém kalendáři dim_date, ne na
+// faktové tabulce — jinak by „posledních 7 dní" znamenalo „posledních
+// 7 řádků s daty", což je při výpadku něco úplně jiného.
+// =====================================================================
+
+Teplota vody 7d =
+AVERAGEX (
+    DATESINPERIOD ( dim_date[date], MAX ( dim_date[date] ), -7, DAY ),
+    CALCULATE ( AVERAGE ( fact_daily[water_temp_c] ) )
+)
+// pandas: df["water_temp_c"].rolling("7D").mean()
+// AVERAGEX projde sedm dnů kalendáře a pro každý spustí vnitřní výpočet;
+// dny bez měření se prostě nezapočítají, místo aby posunuly okno.
+
+Hladina 7d =
+AVERAGEX (
+    DATESINPERIOD ( dim_date[date], MAX ( dim_date[date] ), -7, DAY ),
+    CALCULATE ( AVERAGE ( fact_daily[water_level_cm] ) )
+)
+
+Teplota vody — předchozí den =
+CALCULATE ( [Teplota vody], DATEADD ( dim_date[date], -1, DAY ) )
+
+Změna teploty za den = [Teplota vody] - [Teplota vody — předchozí den]
+
+Teplota vody — loni =
+CALCULATE ( [Teplota vody], SAMEPERIODLASTYEAR ( dim_date[date] ) )
+// Data pokrývají březen 2023 – březen 2024, takže meziroční srovnání
+// dává smysl jen pro leden až březen. Jinde míra správně vrátí prázdno.
+
+Odchylka od průměru období =
+[Teplota vody] - CALCULATE ( [Teplota vody], REMOVEFILTERS ( dim_date ) )
+// REMOVEFILTERS sundá filtr data, takže druhá část počítá průměr za celé
+// období. Rozdíl ukazuje, jak moc se daný den nebo měsíc vymyká.
+
+
+// =====================================================================
+// 4. JAKOST DAT
+// =====================================================================
+
+Dnů s dopočtenou teplotou =
+CALCULATE ( COUNTROWS ( fact_daily ), fact_daily[water_temp_estimated] = TRUE )
+// Dny, kdy hladina klesla pod nejmělčí čidlo (25 cm) a teplota vody
+// se musela dopočítat z teploty vzduchu modelem výměny tepla.
+
+Podíl dopočtených dnů =
+DIVIDE ( [Dnů s dopočtenou teplotou], [Dnů s měřením] )
+// Formát: procenta
+// Nejdůležitější míra celého reportu: říká, jak velké části řady
+// se dá věřit jako měření, a jak velká je model.
+
+Dnů s náhradní hladinou =
+CALCULATE ( COUNTROWS ( fact_daily ), fact_daily[level_substituted] = TRUE )
+// Dny, kdy chybělo dist_comp_rel a hladina se vzala z dist_rel + 3,30 cm.
+
+Chybějících hodin = SUM ( fact_gap[missing_hours] )
+
+Dostupnost stanice =
+VAR OcekavanychHodin = [Dnů v období] * 24
+RETURN
+    DIVIDE ( OcekavanychHodin - [Chybějících hodin], OcekavanychHodin )
+// Formát: procenta
+
+Nejdelší výpadek = MAX ( fact_gap[missing_hours] )
+// Formát: 0 "h"
+
+Vadných čtení = [Počet čtení] - [Platných čtení]
+
+Nefunkčních čidel =
+CALCULATE (
+    DISTINCTCOUNT ( fact_reading[sensor_key] ),
+    fact_reading[quality_key] = "KONSTANTNI"
+)
+// Čidla, která po celou dobu vracejí jedinou hodnotu (rain, rain_delta).
+
+
+// =====================================================================
+// 5. VÝVOJ LAREV
+// =====================================================================
+
+Dokončeno vývoje = MAX ( fact_development[pct_complete] )
+// MAX, ne AVERAGE: kumulativní veličina, k datu platí ta nejvyšší hodnota.
+// Formát: 0.0 "%"
+
+Denní přírůstek = SUM ( fact_development[daily_step] )
+
+Kumulativně =
+CALCULATE (
+    SUM ( fact_development[daily_step] ),
+    FILTER ( ALLSELECTED ( dim_date[date] ), dim_date[date] <= MAX ( dim_date[date] ) )
+)
+// SQL: sum(daily_step) OVER (ORDER BY date)
+// ALLSELECTED respektuje výběr uživatele ve slicerech, ale zruší filtr
+// jednoho řádku grafu — díky tomu se sčítá odshora, ne jen ten jeden den.
+
+Datum kuklení =
+CALCULATE (
+    MIN ( fact_development[date] ),
+    fact_development[is_complete] = TRUE
+)
+
+Dnů do kuklení =
+VAR Radky = CALCULATETABLE ( fact_development, REMOVEFILTERS ( dim_date ) )
+VAR Start = MINX ( Radky, fact_development[date] )
+VAR Kukleni = MINX ( FILTER ( Radky, fact_development[is_complete] ), fact_development[date] )
+RETURN
+    IF ( NOT ISBLANK ( Kukleni ), DATEDIFF ( Start, Kukleni, DAY ) + 1 )
+// REMOVEFILTERS(dim_date) je tu nutné: bez něj by se v grafu po dnech
+// počítalo jen z toho jednoho dne a míra by vždy vyšla 1.
+
+Rozdíl modelů =
+VAR Zakladni =
+    CALCULATE ( [Dnů do kuklení], REMOVEFILTERS ( dim_model ), dim_model[model_key] = "zakladni" )
+VAR Pokrocily =
+    CALCULATE ( [Dnů do kuklení], REMOVEFILTERS ( dim_model ), dim_model[model_key] = "pokrocily" )
+RETURN
+    Zakladni - Pokrocily
+// Formát: 0 "dní"
+// Hlavní zjištění reportu: nelineární Brière model dojde ke kuklení dřív
+// než lineární teplotní suma, protože v teplé vodě roste rychlost vývoje
+// rychleji než lineárně.
+
+Fáze vývoje =
+VAR Pct = [Dokončeno vývoje]
+RETURN
+    SWITCH (
+        TRUE (),
+        ISBLANK ( Pct ), BLANK (),
+        Pct >= 100, "kuklení",
+        Pct >= 67, "instar 4",
+        Pct >= 40, "instar 3",
+        "instar 1–2"
+    )
+// SWITCH(TRUE(), …) je v DAXu náhrada za CASE WHEN.
+
+Kohort dokončeno =
+CALCULATE (
+    DISTINCTCOUNT ( fact_development[cohort_id] ),
+    fact_development[is_complete] = TRUE
+)
+
+Podíl dnů s dopočtenou teplotou v kohortě =
+DIVIDE (
+    CALCULATE ( COUNTROWS ( fact_development ), fact_development[temp_estimated] = TRUE ),
+    COUNTROWS ( fact_development )
+)
+// Formát: procenta
+// Poctivá míra k výsledku: říká, na jak spolehlivém vstupu předpověď stojí.
+
+
+// =====================================================================
+// 6. MÍRY PRO NADPISY A UPOZORNĚNÍ
+//
+// Dynamické titulky se v Power BI dělají tak, že se míra vloží do
+// vlastnosti Název vizuálu → fx → Podle hodnoty pole.
+// =====================================================================
+
+Titulek období =
+VAR Od = MIN ( dim_date[date] )
+VAR Do = MAX ( dim_date[date] )
+RETURN
+    FORMAT ( Od, "d. M. yyyy" ) & " – " & FORMAT ( Do, "d. M. yyyy" )
+
+Upozornění na jakost =
+VAR Podil = [Podíl dopočtených dnů]
+RETURN
+    SWITCH (
+        TRUE (),
+        ISBLANK ( Podil ), "",
+        Podil >= 0.5, "Pozor: teplota vody je z větší části dopočítaná, ne měřená.",
+        Podil >= 0.2, "Část dnů má teplotu vody dopočítanou z teploty vzduchu.",
+        ""
+    )

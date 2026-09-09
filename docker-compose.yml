@@ -1,0 +1,103 @@
+# =====================================================================
+# Celý stack jedním příkazem:
+#
+#     docker compose up -d
+#
+# PostgreSQL se při prvním startu sám vytvoří, nahraje CSV z ./out
+# a založí pohledy. InfluxDB se nastaví sama, data se do ní posílají
+# skriptem influx/load.ps1 (Windows) nebo influx/load.sh.
+#
+# Přihlašovací údaje jsou v .env a jsou vývojové — stack poslouchá jen
+# na localhost a nemá co dělat mimo tvůj počítač.
+# =====================================================================
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: mosprema-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Kvůli českým názvům v dimenzích
+      LANG: cs_CZ.utf8
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # CSV z ETL; COPY je čte ze strany serveru, proto musí být uvnitř kontejneru
+      - ./out:/csv:ro
+      # Skripty v docker-entrypoint-initdb.d se pouštějí v abecedním pořadí
+      # a jen při úplně prvním startu (dokud je svazek pgdata prázdný).
+      - ./postgres/01_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./postgres/02_load_docker.sql:/docker-entrypoint-initdb.d/02_load_docker.sql:ro
+      - ./postgres/03_views.sql:/docker-entrypoint-initdb.d/03_views.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  influxdb:
+    image: influxdb:2.7
+    container_name: mosprema-influxdb
+    restart: unless-stopped
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_USER}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+      # 0 = data nevyprší. Měření z BP jsou z roku 2023, výchozí retenci
+      # by neustála a bucket by se hned po nahrání vyprázdnil.
+      DOCKER_INFLUXDB_INIT_RETENTION: 0
+    ports:
+      - "127.0.0.1:8086:8086"
+    volumes:
+      - influxdata:/var/lib/influxdb2
+      - influxconfig:/etc/influxdb2
+      - ./influx:/import:ro
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: mosprema-grafana
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+      GF_USERS_DEFAULT_THEME: light
+      # Proměnné se dosazují do provisioning souborů, aby v nich
+      # nemusela být hesla natvrdo.
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      INFLUX_TOKEN: ${INFLUX_TOKEN}
+      INFLUX_ORG: ${INFLUX_ORG}
+      INFLUX_BUCKET: ${INFLUX_BUCKET}
+    ports:
+      # Port je v .env, protože nativní instalace Grafany jako služby Windows
+      # drží 3000 a obě instance by se o něj praly.
+      - "127.0.0.1:${GRAFANA_PORT}:3000"
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+volumes:
+  pgdata:
+  influxdata:
+  influxconfig:
+  grafanadata:
