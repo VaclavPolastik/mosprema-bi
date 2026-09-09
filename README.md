@@ -9,6 +9,8 @@ otázku.
 Katedra geoinformatiky, Univerzita Palackého v Olomouci.
 Stanice `mosprema_206`, 15. 3. 2023 – 23. 3. 2024, hodinový krok.
 
+**Repozitář:** <https://github.com/VaclavPolastik/mosprema-bi>
+
 **Náhled bez instalace:** <https://claude.ai/code/artifact/62ef87f2-ca28-4e1c-9f9b-4cf79e65b600>
 — tatáž čísla a křivky jako v Grafaně, spočítané stejným ETL, jen jako statická
 stránka. Zdroj je `docs/preview.html`.
